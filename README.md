@@ -1,0 +1,2 @@
+# MineSGen
+Minecraft Server Generator
