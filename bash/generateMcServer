@@ -1,0 +1,1567 @@
+#!/bin/bash
+
+###########################################################
+#Liste des Variables nécessaires:
+#		ServerName			: nom du serveur
+#		ServerPort			: port du serveur
+#		WebServerPort		: port du serveur web
+#		ServerType			: Créatif ou Survie
+#		workDir					: Emplacement de travail et du nouveau dossier de serveur ----varie selon le type de serveur
+#		ServerAdmin			: Premier OP du serveur
+#		ServerVersion		: Version Minecraft du serveur
+#		ServerDifficulty: Difficulté du serveur
+#   ServerBase      : bukkit, vanilla, forge
+###########################################################
+
+##DEFAULT Minecraft server properties
+	#spawn-protection=16
+	#max-tick-time=60000
+	#server-name=Unknown Server
+	#generator-settings=
+	#force-gamemode=false
+	#allow-nether=true
+	#gamemode=0
+	#enable-query=false
+	#player-idle-timeout=0
+	#difficulty=1
+	#spawn-monsters=true
+	#op-permission-level=4
+	#resource-pack-hash=
+	#announce-player-achievements=true
+	#pvp=true
+	#snooper-enabled=true
+	#level-type=DEFAULT
+	#hardcore=false
+	#enable-command-block=false
+	#max-players=10
+	#network-compression-threshold=256
+	#max-world-size=29999984
+	#server-port=25565
+	#server-ip=
+	#spawn-npcs=true
+	#allow-flight=false
+	#level-name=world
+	#view-distance=12
+	#resource-pack=
+	#spawn-animals=true
+	#white-list=false
+	#generate-structures=true
+	#online-mode=false
+	#max-build-height=256
+	#level-seed=
+	#use-native-transport=true
+	#motd=Baka No Laboratory
+	#enable-rcon=false
+
+###########################################################
+
+#Arborescence:
+
+# /
+#   srv
+#   |  Minecraft   ----------------------------------------------> $workRootDir
+#   |    |  Servers   -------------------------------------------> $ServersDir
+#   |    |    | Creative  --------------------\
+#   |    |    | Survival  ---------------------->-----> $ServerDir (ATTETION, sans le S)
+#   |    |    | Multiverse--------------------/
+#   |    |  Launch    -------------------------------------------> $launchDir
+#   |    |    | <servers launchers>
+#   |    |    | ...
+#   |    |  process   -------------------------------------------> $processDir
+#   |    |    | sources   ---------------------------------------> $SourcesDir
+#   |    |    |    |  Server    ---------------------------------> $ServerSourcesDir
+#   |    |    |    |    | bukkit
+#   |    |    |    |    |    | <available Versions>
+#   |    |    |    |    |    | ...
+#   |    |    |    |    | vanilla
+#   |    |    |    |    |    | <available Versions>
+#   |    |    |    |    |    | ...
+#   |    |    |    |    | forge
+#   |    |    |    |    |    | <available Versions>
+#   |    |    |    |    |    | ...
+#   |    |    |    |  addons    --------------------------------> $AddonsDir
+#   |    |    |    |    | bukkit
+#   |    |    |    |    |    | <available Versions>
+#   |    |    |    |    |    | ...
+#   |    |    |    |    | forge
+#   |    |    |    |    |    | <available Versions>
+#   |    |    |    |    |    | ...
+#   |    |    |  [generateMcServer]
+#   |    |    |  backendProcesses ------------------------------> $backendProcessesDir
+#		|		 |		|		 |	MS_BP_skeletton
+# 	|		 |		|    |	  |		[ServerSave.cron]
+# 	|		 |		|    |	  |		[ServerReset.cron]
+# 	|		 |		|    |	  |		[ServerStop.cron]
+# 	|		 |		|    |	  |		[ServerStart.cron]
+# 	|		 |		|    |	<serverName>
+# 	|		 |		|    |	  |		[<serverName>.ServerSave.cron]
+# 	|		 |		|    |	  |		[<serverName>.ServerReset.cron]
+# 	|		 |		|    |	  |		[<serverName>.ServerStop.cron]
+# 	|		 |		|    |	  |		[<serverName>.ServerStart.cron]
+#   |    |  [ServerLogs.logs]
+#   |    |  [server.list]
+
+##########################################################
+
+#DIR VERIFICATION
+
+    #VARIABLES
+      # $workRootDir           /srv/Minecraft
+      # $ServersDir            /srv/Minecraft/Servers
+      # $processDir            /srv/Minecraft/process
+      # $launchDir             /srv/Minecraft/Launch
+
+      # $SourcesDir            /srv/Minecraft/process/sources
+      # $AddonsDir             /srv/Minecraft/process/sources/addons
+      # $ServerSourcesDir      /srv/Minecraft/process/sources/Server
+
+			#$backendProcessesDir		 /srv/Minecraft/process/backendProcesses
+
+dirVerification()
+{
+	infoMessage "Verification des répertoire existants"
+
+  # ------- $workRootDir
+  if [[ -d "/srv/Minecraft" ]]
+  then
+    workRootDir="/srv/Minecraft"
+  else
+    sudo mkdir -p "/srv/Minecraft"
+    workRootDir="/srv/Minecraft"
+    echo -e "Répertoire créé:   $workRootDir "
+  fi
+
+  # ------- $ServersDir
+  if [[ -d "/srv/Minecraft/Servers" ]]
+  then
+    ServersDir="/srv/Minecraft/Servers"
+  else
+    sudo mkdir -p "/srv/Minecraft/Servers"
+    ServersDir="/srv/Minecraft/Servers"
+    echo -e "SERVER - Répertoire créé:   $ServersDir"
+    sudo mkdir -p "/srv/Minecraft/Servers/Creative"
+    echo -e "SERVER - Répertoire créé:   $ServersDir/Creative"
+    sudo mkdir -p "/srv/Minecraft/Servers/Survival"
+    echo -e "SERVER - Répertoire créé:   $ServersDir/Survival"
+    sudo mkdir -p "/srv/Minecraft/Servers/Multiverse"
+    echo -e "SERVER - Répertoire créé:   $ServersDir/Multiverse"
+  fi
+
+  # ------- $processDir
+  if [[ -d "/srv/Minecraft/process" ]]
+  then
+    processDir="/srv/Minecraft/process"
+  else
+    sudo mkdir -p "/srv/Minecraft/process"
+    processDir="/srv/Minecraft/process"
+    echo -e "Répertoire créé:   $processDir "
+  fi
+
+  # ------- $launchDir
+  if [[ -d "/srv/Minecraft/Launch" ]]
+  then
+  launchDir="/srv/Minecraft/Launch"
+  else
+    sudo mkdir -p "/srv/Minecraft/Launch"
+    launchDir="/srv/Minecraft/Launch"
+    echo -e "Répertoire créé:   $launchDir "
+  fi
+
+  # ------- $SourcesDir
+  if [[ -d "/srv/Minecraft/process/sources" ]]
+  then
+    SourcesDir="/srv/Minecraft/process/sources"
+  else
+    sudo mkdir -p "/srv/Minecraft/process/sources"
+    SourcesDir="/srv/Minecraft/process/sources"
+    echo -e "Répertoire créé:   $SourcesDir "
+  fi
+
+  # ------- $AddonsDir
+  if [[ -d "/srv/Minecraft/process/sources/addons" ]]
+  then
+    AddonsDir="/srv/Minecraft/process/sources/addons"
+  else
+    sudo mkdir -p "/srv/Minecraft/process/sources/addons"
+    AddonsDir="/srv/Minecraft/process/sources/addons"
+    echo -e "ADDONS - Répertoire créé:   $AddonsDir "
+    sudo mkdir "$AddonsDir/bukkit"
+    echo -e "ADDONS - Répertoire créé:   $AddonsDir/bukkit"
+    sudo mkdir "$AddonsDir/forge"
+    echo -e "ADDONS - Répertoire créé:   $AddonsDir/forge "
+  fi
+
+  # ------- $ServerSourcesDir
+  if [[ -d "/srv/Minecraft/process/sources/Server" ]]
+  then
+    ServerSourcesDir="/srv/Minecraft/process/sources/Server"
+  else
+    sudo mkdir -p "/srv/Minecraft/process/sources/Server"
+    ServerSourcesDir="/srv/Minecraft/process/sources/Server"
+    echo -e "ServerSources - Répertoire créé:   $ServerSourcesDir "
+    sudo mkdir "$ServerSourcesDir/bukkit"
+    echo -e "ServerSources - Répertoire créé:   $ServerSourcesDir/bukkit"
+    sudo mkdir "$ServerSourcesDir/forge"
+    echo -e "ServerSources - Répertoire créé:   $ServerSourcesDir/forge "
+    sudo mkdir "$ServerSourcesDir/vanilla"
+    echo -e "ServerSources - Répertoire créé:   $ServerSourcesDir/vanilla "
+  fi
+
+  # ------- $GENERATOR
+  #  if [[ ! -e "$processDir/generateMcServer" ]]
+  #  then
+  #    sudo touch generateMcServer
+  #
+  #  fi
+
+  # ------- LOGS
+  if [[ -e "$workRootDir/ServerLogs.logs" ]]
+  then
+    sudo su - root << EOF
+      echo "[LOG] - $(date) - Nouvelle Création de serveur lancée"
+      echo "[LOG] - $(date) - Nouvelle Vérification de fichier Achevée avec succès"
+EOF
+  else
+    sudo touch "$workRootDir/ServerLogs.logs"
+    sudo su - root << EOF
+      echo "[LOG] - $(date) - Génération du nouveau fichier LOG" >> "$workRootDir/ServerLogs.logs"
+      echo "[LOG] - $(date) - Nouvelle Création de serveur lancée" >> "$workRootDir/ServerLogs.logs"
+      echo "[LOG] - $(date) - Nouvelle Vérification de fichier Achevée avec succès" >> "$workRootDir/ServerLogs.logs"
+EOF
+  fi
+
+  # ------- SERVER.LIST
+  if [[ ! -e "$workRootDir/server.list" ]]
+  then
+    echo "MINECRAFT - Génération du server.list"
+    sudo touch "$workRootDir/server.list"
+    sudo su - root << EOF
+      echo "#Server.list" >> "$workRootDir/server.list"
+      echo "#ServerName ServerVersion MinecraftServerPort ApachePort" >> "$workRootDir/server.list"
+EOF
+  fi
+
+  validMessage "Vérification de l'Arborescence achevée avec succès"
+}
+
+###########################################################
+
+  # MESSAGE STYLES
+
+errorMessage()
+{
+  echo -e "\e[1;31m[ERROR] : $1 \e[0;0m"
+}
+
+infoMessage()
+{
+  echo -e "\e[1;33m[INFO] : $1 \e[0;0m"
+}
+
+validMessage()
+{
+  echo -e "\e[1;32m $1 \e[0;0m"
+}
+
+###########################################################
+
+# DIR GENERATION
+generateDirs()
+{
+	repeatServ=0
+	if [[ -n $ServersDir ]] && [[ -n $ServerBase ]] && [[ -n $ServerDir ]] && [[ -n $server_name ]]
+	then
+		while [[ true ]]
+		do
+			if [[ -d "$ServersDir/$ServerDir/$server_name" ]]
+			then
+				repeatServ=$((repeatServ+1))
+				server_name="$server_name-$repeatServ"
+			else
+
+				#SERVER DIR
+				echo "Création du répertoire $ServersDir/$ServerDir/$server_name"
+				sudo mkdir $ServersDir/$ServerDir/$server_name
+
+				#SERVER DATA DIR
+				echo "Création du répertoire $ServersDir/$ServerDir/$server_name/server"
+				sudo mkdir $ServersDir/$ServerDir/$server_name/server
+
+				#COMMAND DIR
+				echo "Création du Minecraft Server Launcher $ServersDir/$ServerDir/$server_name/commands"
+				sudo mkdir $ServersDir/$ServerDir/$server_name/commands
+
+				#JAVA LAUNCHER
+				#DEFAULT = /srv/Minecraft/Servers/<serverType>/<serverName>/commands/launcher.sh
+				echo "Création du Minecraft Server Launcher $ServersDir/$ServerDir/$server_name/commands/launcher.sh"
+				sudo touch $ServersDir/$ServerDir/$server_name/commands/launcher.sh
+				sudo su - root << EOF
+				echo "cd /tmp/Server">>"$ServersDir/$ServerDir/$server_name/commands/launcher.sh"
+				echo "java -Xms1024M -Xmx1024M -jar server.jar nogui" >> $ServersDir/$ServerDir/$server_name/commands/launcher.sh
+EOF
+				sudo chmod +x $ServersDir/$ServerDir/$server_name/commands/launcher.sh
+
+				#directory LAUNCH
+				infoMessage "Génération du répertoire de lancement"
+				sudo mkdir "$launchDir/$server_name/"
+
+				#SERVER LAUNCHER
+				#DEFAULT= /srv/Minecraft/launch/<serverName>.launch
+				echo "Création du fichier de lancement "
+				sudo touch "$launchDir/$server_name/$server_name.launch"
+				sudo su - root << EOF
+				echo "sudo docker run -it --name $server_name -d -p $ServerPort:25565 -p $WebServerPort:8123 -v $ServersDir/$ServerDir/$server_name/server:/tmp/Server -v $ServersDir/$ServerDir/$server_name/commands:/bin/ServerLauncher/ java_mineserv sh /bin/ServerLauncher/launcher.sh" >> "$launchDir/$server_name/$server_name.launch"
+EOF
+				sudo chmod +x $launchDir/$server_name/$server_name.launch
+
+				#SERVER STOPER
+				echo "Création du fichier d'arret "
+				sudo touch "$launchDir/$server_name/$server_name.stopper"
+				sudo su - root << EOF
+				echo "sudo docker stop $server_name" >> "$launchDir/$server_name/$server_name.stopper"
+				echo "sudo docker rm $server_name" >> "$launchDir/$server_name/$server_name.stopper"
+				echo "echo \"Serveur Stoppé: $server_name\"" >> "$launchDir/$server_name/$server_name.stopper"
+EOF
+				sudo chmod +x $launchDir/$server_name/$server_name.stopper
+
+				#SERVER RESTART
+				echo "Création du fichier de restart "
+				sudo touch "$launchDir/$server_name/$server_name.restarter"
+				sudo su - root << EOF
+				echo "sudo docker restart $server_name" >> "$launchDir/$server_name/$server_name.restarter"
+EOF
+				sudo chmod +x $launchDir/$server_name/$server_name.restarter
+
+				#SERVER RESET
+				echo "Création du fichier de restart "
+				sudo touch "$launchDir/$server_name/$server_name.reseter"
+				sudo su - root << EOF
+				echo -e "sudo docker stop $server_name" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "sudo docker rm $server_name" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "sudo rm -r $ServersDir/$ServerDir/$server_name/server/world" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "if [[ -d $ServersDir/$ServerDir/$server_name/server/world_nether ]]" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "then" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "	sudo rm -r $ServersDir/$ServerDir/$server_name/server/world_nether" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "fi" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "if [[ -d $ServersDir/$ServerDir/$server_name/server/world_the_end ]]" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "then" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "	sudo rm -r $ServersDir/$ServerDir/$server_name/server/world_the_end" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "fi" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "if [[ -d $ServersDir/$ServerDir/$server_name/server/dynmap ]]" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "then" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "	sudo rm -r $ServersDir/$ServerDir/$server_name/server/dynmap" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "fi" >> "$launchDir/$server_name/$server_name.reseter"
+				echo -e "$launchDir/$server_name/$server_name.launch" >> "$launchDir/$server_name/$server_name.reseter"
+
+EOF
+				sudo chmod +x $launchDir/$server_name/$server_name.reseter
+
+
+				#SERVER REMOVER
+				echo "Création du fichier d'arret "
+				sudo touch "$launchDir/$server_name/$server_name.remover"
+				sudo su - root << EOF
+				echo -e "#!/bin/bash" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "while [[ true ]]" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "do" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "	read -p 'Êtes vous certain de vouloir supprimer le serveur $server_name ? [N/o] : ' rmMcServ " >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "	case \$rmMcServ in" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "		Y | y | O | o ) echo -e 'Serveur en cours de suppression : '" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "										sudo sed '/$server_name $ServerVersion $ServerPort $WebServerPort/d' $workRootDir/server.list" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "										sudo docker stop $server_name" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "										sudo docker rm $server_name" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "										sudo rm -r $ServersDir/$ServerDir/$server_name/" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "										sudo rm -r $launchDir/$server_name/" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "										echo 'suppression Terminée' " >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "										echo \"[LOG] - \$(date) - Suppression du Serveur $server_name\" >> $workRootDir/ServerLogs.logs" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "										exit 0 ;;" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "		N | n | '' ) echo 'Serveur Non supprimé'" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "									break;;" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e " 		* ) ;;" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "	esac" >> "$launchDir/$server_name/$server_name.remover"
+				echo -e "done" >> "$launchDir/$server_name/$server_name.remover"
+EOF
+				sudo chmod +x $launchDir/$server_name/$server_name.remover
+
+				#BUKKIT IMPORT
+				echo "Import du lanceur"
+				sudo su - root << EOF
+				cp -r $ServerSourcesDir/$ServerBase/$ServerVersion/* $ServersDir/$ServerDir/$server_name/server/
+EOF
+
+				if [[ -e "$workRootDir/server.list" ]]
+				then
+					echo "Ajout du serveur au server.list"
+					sudo su - root << EOF
+					echo "$server_name $ServerVersion $ServerPort $WebServerPort" >> "$workRootDir/server.list"
+EOF
+				else
+					echo "Génération du server.list -> $workRootDir/server.list"
+					sudo touch "$workRootDir/server.list"
+					sudo su - root << EOF
+					echo "#Server.list" >> "$workRootDir/server.list"
+					echo "#Server NAME ServerVersion MinecraftServerPort ApachePort" >> "$workRootDir/server.list"
+					echo "Ajout du serveur au server.list"
+					echo "$server_name $ServerVersion $ServerPort $WebServerPort" >> "$workRootDir/server.list"
+EOF
+				fi
+				break
+			fi
+		done
+
+	else
+		read -p "Chemin d'accès du dossier de sauvegarde : "
+	fi
+}
+
+###########################################################
+
+#EULA
+
+validerEula()
+{
+	infoMessage "Pour continuer, merci de valider le Eula:"
+	echo -e "https://account.mojang.com/documents/minecraft_eula"
+	while [[ true ]]
+	do
+		read -p "Confirmer la validation? [O/n] : " validateEula
+		case $validateEula in
+			O | o | y | Y | "" ) validMessage "EULA validé"
+											break;;
+			N | n ) while [[ true ]];
+							do
+								read -p "Êtes vous sur de refuser la validation de l'eula.txt (ceci entraînera l'annulation de la création du serveur) [O/n] : " cancelEula
+								case $cancelEula in
+									O | o | y | Y | "" ) errorMessage "Création du serveur annulée"
+																				exit 0;;
+									N | n ) break;;
+									* ) ;;
+								esac
+							done;;
+			* ) ;;
+		esac
+	done
+}
+
+###########################################################
+
+#ADD PLUGIN
+
+addPlugin()
+{
+	while [[ true ]]
+	do
+		PLGattr=0
+		PLGTable=[]
+		plgfounded=0
+		if [[ "$ServerBase" == "bukkit" ]]
+		then
+			AddonsLocation="$MineServerDir/plugins/"
+		else
+			AddonsLocation="$MineServerDir/mods/"
+		fi
+
+		echo "Voici toute les addons disponibles pour votre version : \
+		"
+
+		for plg in $(ls $AddonsDir/$ServerBase/$ServerVersion)
+		do
+			PLGattr=$((PLGattr+1))
+			for currentPLG in $(ls $AddonsLocation/)
+			do
+				if [[ "$currentPLG" == "$plg" ]]
+				then
+					echo -e "($PLGattr) $plg \e[1;34m [installed] \e[0;0m"
+					PLGTable[$PLGattr]="$plg"
+					plgfounded=1
+					break
+				fi
+			done
+			if [[ $plgfounded == 0 ]]
+			then
+				echo -e "($PLGattr) $plg"
+				PLGTable[$PLGattr]="$plg"
+			fi
+		done
+		while [[ true ]]
+		do
+			read -p "Plugin à installer (Defaut = "$PLGattr") : " pServ
+			case $pServ in
+				[1-$PLGattr] ) 	if [[ -e $AddonsLocation/$pServ ]]
+												then
+													errorMessage "Ce plugin est déjà installé sur le serveur"
+												else
+													sudo cp -r $AddonsDir/$ServerBase/$ServerVersion/${PLGTable[$pServ]} $AddonsLocation/
+													break
+												fi;;
+				[${PLGTable[@]}] ) 	if [[ -e $AddonsLocation/$pServ ]]
+														then
+															errorMessage "Ce plugin est déjà installé sur le serveur"
+														else
+															sudo cp -r $AddonsDir/$ServerBase/$ServerVersion/$pServ $AddonsLocation/
+															break
+														fi;;
+				"" )	if [[ -e $AddonsLocation/${PLGTable[$PLGattr]} ]]
+							then
+								errorMessage "Ce plugin est déjà installé sur le serveur"
+							else
+								sudo cp -r $AddonsDir/$ServerBase/$ServerVersion/${PLGTable[$PLGattr]} $AddonsLocation/
+								break
+							fi;;
+				* ) for Splg in $(ls $AddonsDir/$ServerBase/$ServerVersion)
+						do
+							if [[ "$pServ" == "$Splg" ]]
+							then
+								breakSplg=1
+								if [[ -e $AddonsLocation/$pServ ]]
+								then
+									errorMessage "Ce plugin est déjà installé sur le serveur"
+								else
+									sudo cp -r $AddonsDir/$ServerBase/$ServerVersion/$pServ $AddonsLocation/
+									break
+								fi
+							fi
+						done
+						if [[ $breakSplg == 1 ]]
+						then
+							breakPlgChoice=1
+							break
+						fi
+						breakPlgChoice=0
+						errorMessage "plugin non disponible.";;
+			esac
+		done
+
+		if [[ $breakPlgChoice == 1 ]]
+		then
+			break
+		fi
+
+		while [[ true ]]
+		do
+			read -p "Souhaitez vous ajouter un autre plugin? [N/o] : " otherPlg
+			case $otherPlg in
+				O | o | y | Y )	setOtherplg=1
+												break;;
+				N | n | "" )	setOtherplg=0
+											break;;
+				* ) ;;
+			esac
+		done
+
+		if [[ $setOtherplg == 0 ]]
+		then
+			break
+		fi
+	done
+
+}
+###########################################################
+
+dockerLaunch()
+{
+	MineServerDir="$ServersDir/$ServerDir/$server_name/server"
+	sudo $launchDir/$server_name/$server_name.launch
+	echo -e "Génération des fichiers"
+	sleep 60
+
+	if [[ -e "$MineServerDir/eula.txt" ]]
+	then
+		sudo rm $MineServerDir/eula.txt
+		sudo touch $MineServerDir/eula.txt
+		sudo su - root << EOF
+		echo "#By changing the setting below to TRUE you are indicating your agreement to our EULA (https://account.mojang.com/documents/minecraft_eula)." >> "$MineServerDir/eula.txt"
+		echo "#$(date)" >> "$MineServerDir/eula.txt"
+		echo "eula=true" >> "$MineServerDir/eula.txt"
+EOF
+		validMessage "EULA.txt validé"
+	fi
+		sudo docker stop $server_name
+		sudo docker rm $server_name
+		sudo $launchDir/$server_name/$server_name.launch
+		sleep 10
+		sudo $launchDir/$server_name/$server_name.stopper
+		if [[ -e "$MineServerDir/server.properties" ]]
+		then
+			sudo rm $MineServerDir/server.properties
+			sudo touch $MineServerDir/server.properties
+			sudo su - root << EOF
+			echo "spawn-protection=$spawn_protection" >> $MineServerDir/server.properties
+			echo "max-tick-time=$max_tick_time" >> $MineServerDir/server.properties
+			echo "server-name=$server_name" >> $MineServerDir/server.properties
+			echo "generator-settings=$generator_settings" >> $MineServerDir/server.properties
+			echo "force-gamemode=$force_gamemode" >> $MineServerDir/server.properties
+			echo "allow-nether=$allow_nether" >> $MineServerDir/server.properties
+			echo "gamemode=$gamemode" >> $MineServerDir/server.properties
+			echo "enable-query=$enable_query" >> $MineServerDir/server.properties
+			echo "player-idle-timeout=$player_idle_timeout" >> $MineServerDir/server.properties
+			echo "difficulty=$difficulty" >> $MineServerDir/server.properties
+			echo "spawn-monsters=$spawn_monsters" >> $MineServerDir/server.properties
+			echo "op-permission-level=$op_permission_level" >> $MineServerDir/server.properties
+			echo "resource-pack-hash=$resource_pack_hash" >> $MineServerDir/server.properties
+			echo "announce-player-achievements=$announce_player_achievements" >> $MineServerDir/server.properties
+			echo "pvp=$pvp" >> $MineServerDir/server.properties
+			echo "snooper-enabled=$snooper_enabled" >> $MineServerDir/server.properties
+			echo "level-type=$level_type" >> $MineServerDir/server.properties
+			echo "hardcore=$hardcore" >> $MineServerDir/server.properties
+			echo "enable-command-block=$enable_command_block" >> $MineServerDir/server.properties
+			echo "max-players=$max_players" >> $MineServerDir/server.properties
+			echo "network-compression-threshold=$network_compression_threshold" >> $MineServerDir/server.properties
+			echo "max-world-size=$max_world_size" >> $MineServerDir/server.properties
+			echo "server-port=$server_port" >> $MineServerDir/server.properties
+			echo "server-ip=$server_ip" >> $MineServerDir/server.properties
+			echo "spawn-npcs=$spawn_npcs" >> $MineServerDir/server.properties
+			echo "allow-flight=$allow_flight" >> $MineServerDir/server.properties
+			echo "level-name=$level_name" >> $MineServerDir/server.properties
+			echo "view-distance=$view_distance" >> $MineServerDir/server.properties
+			echo "resource-pack=$resource_pack" >> $MineServerDir/server.properties
+			echo "spawn-animals=$spawn_animals" >> $MineServerDir/server.properties
+			echo "white-list= $white_list" >> $MineServerDir/server.properties
+			echo "generate-structures=$generate_structures" >> $MineServerDir/server.properties
+			echo "online-mode=$online_mode" >> $MineServerDir/server.properties
+			echo "max-build-height=$max_build_height" >> $MineServerDir/server.properties
+			echo "level-seed=$level_seed" >> $MineServerDir/server.properties
+			echo "use-native-transport=$use_native_transport" >> $MineServerDir/server.properties
+			echo "motd=$motd" >> $MineServerDir/server.properties
+			echo "enable-rcon=$enable_rcon" >> $MineServerDir/server.properties
+EOF
+		fi
+
+		if [[ -e $MineServerDir/ops.json ]]
+		then
+		sudo rm $MineServerDir/ops.json
+		sudo touch $MineServerDir/ops.json
+		sudo su - root << EOF
+		echo "[" >> $MineServerDir/ops.json
+		echo "	{" >> $MineServerDir/ops.json
+		echo "		\"uuid\": \"8506329d-be90-3bab-83fa-e8a9c53674e6\"," >> $MineServerDir/ops.json
+		echo " 	 	\"name\": \"KeelOkumura\"," >> $MineServerDir/ops.json
+		echo " 	 	\"level\": 4," >> $MineServerDir/ops.json
+		echo " 	 	\"bypassesPlayerLimit\": false" >> $MineServerDir/ops.json
+		echo "	}," >> $MineServerDir/ops.json
+		echo "	{" >> $MineServerDir/ops.json
+		echo "		\"uuid\": \"33a41aa9-e3c0-442f-9f20-f1b0933ae629\"," >> $MineServerDir/ops.json
+		echo "		\"name\": \"KeelOkumura\"," >> $MineServerDir/ops.json
+		echo "		\"level\": 4," >> $MineServerDir/ops.json
+		echo "		\"bypassesPlayerLimit\": false" >> $MineServerDir/ops.json
+  	echo "	}" >> $MineServerDir/ops.json
+		echo "]" >> $MineServerDir/ops.json
+EOF
+		fi
+
+		validMessage "Génération du serveur Terminée"
+}
+
+###########################################################
+
+# SERVER.PROPERTIES
+#*******************************************************************************************#
+#Valeurs par défaut			------------------				Variable
+#spawn-protection=16													# $spawn_protection
+#max-tick-time=60000													# $max_tick_time
+#server-name=Unknown Server										# $server_name
+#generator-settings=													# $generator_settings
+#force-gamemode=false													# $force_gamemode
+#allow-nether=true														# $allow_nether
+#gamemode=0																		# $gamemode
+#enable-query=false														#	$enable_query
+#player-idle-timeout=0												# $player_idle_timeout
+#difficulty=1																	# $difficulty
+#spawn-monsters=true													# $spawn_monsters
+#op-permission-level=4												# $op_permission_level
+#resource-pack-hash=													# $resource_pack_hash
+#announce-player-achievements=true						# $announce_player_achievements
+#pvp=true																			# $pvp
+#snooper-enabled=true													# $snooper_enabled
+#level-type=DEFAULT														# $level_type
+#hardcore=false																# $hardcore
+#enable-command-block=false										# $enable_command_block
+#max-players=10																# $max_players
+#network-compression-threshold=256						# $network_compression_threshold
+#max-world-size=29999984											# $max_world_size
+#server-port=25565														# $server_port
+#server-ip=																		# $server_ip
+#spawn-npcs=true															# $spawn_npcs
+#allow-flight=false														# $allow_flight
+#level-name=world															# $level_name
+#view-distance=12															# $view_distance
+#resource-pack=																# $resource_pack
+#spawn-animals=true														# $spawn_animals
+#white-list=false															# $white_list
+#generate-structures=true											# $generate_structures
+#online-mode=false														# $online_mode
+#max-build-height=256													# $max_build_height
+#level-seed=																	# $level_seed
+#use-native-transport=true										# $use_native_transport
+#motd=Baka No Laboratory											# $motd
+#enable-rcon=false														# $enable_rcon
+#*******************************************************************************************#
+
+setServerProperties()
+{
+	infoMessage "Edition du server.properties - 	libellé [valeur par défaut] : valeur"
+	infoMessage "Merci de vous renseigner sur le wiki minecraft avant toute modification pour un bon fonctionnement de votre serveur.\
+	 	-> \e[0;34m https://minecraft.fr.gamepedia.com/Server.properties "
+
+	#SPAWN PROTECTION
+		while [[ true ]]
+		do
+			read -p "spawn-protection [16] : " spawn_protection
+			if [[ $spawn_protection == "" ]]
+			then
+				spawn_protection="16"
+				break
+			else
+				{
+
+					 spTest=$(($spawn_protection/2))
+					 unset spTest
+					 if [[ $spawn_protection > -1 ]]
+					 then
+						 break
+					 else
+						 errorMessage "Ce paramètre doit être supérieur ou égal à -1"
+					 fi
+				} || {
+								errorMessage "Merci d'entrer un nombre pour ce paramètre."
+							}
+			fi
+		done
+
+	#MAX TCK TIME
+		while [[ true ]]
+		do
+			read -p "max-tick-time [60000] : " max_tick_time
+			if [[ $max_tick_time == "" ]]
+			then
+				spawn_protection="60000"
+				break
+			else
+				{
+
+					 spTest=$(($max_tick_time/2))
+					 unset spTest
+					 if [[ $max_tick_time > 0 ]] && [[ $max_tick_time < $(( (2**63)-1 )) ]]
+					 then
+						 break
+					 else
+						 errorMessage "Ce paramètre doit être supérieur ou égal à 0 et ne peux pas excéder 2^(63)-1"
+					 fi
+				} || {
+								errorMessage "Merci d'entrer un nombre pour ce paramètre."
+							}
+			fi
+		done
+
+	#SERVER NAME
+		if [[ -z "$ServerName" ]]
+		then
+			read -p "server-name [UnknownServer] (\\ devant les caractères spéciaux) : " server_name
+			if [[ $server_name == "" ]]
+			then
+				server_name="UnknownServer"
+			fi
+			ServerName=$server_name
+		else
+			infoMessage "Server-name set to \"$ServerName\""
+			server_name="$ServerName"
+		fi
+
+	#GENERATOR SETTINGS
+		#read -p "generator-settings [NULL] : " generator_settings
+		generator_settings=""
+
+	#FORCE GAMEMODE
+		while [[ true ]]
+		do
+			read -p "force-gamemode [false] : " force_gamemode
+			case $(echo "$force_gamemode" | tr [:upper:] [:lower:]) in
+				true )	force_gamemode="true"
+											break;;
+				false | "" ) force_gamemode="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#ALLOW NETHER
+		while [[ true ]]
+		do
+			read -p "allow-nether [true] : " allow_nether
+			case $(echo "$allow_nether" | tr [:upper:] [:lower:]) in
+				true | "" )	allow_nether="true"
+											break;;
+				false ) allow_nether="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#GAMEMODE
+		if [[ -z "$ServerType" ]]
+		then
+			while [[ true ]]
+			do
+				read -p "gamemode [0] : " gamemode
+				case $gamemode in
+					0 | 1 | 2 | 3 ) case $gamemode in
+														0 ) ServerDir="Survival";;
+														1 ) ServerDir="Creative";;
+														2 ) ServerDir="Survival";;
+														3 ) ServerDir="Creative";;
+														* ) exit 1;;
+													esac
+													break;;
+					"" ) 	gamemode="0"
+								ServerType="0"
+								ServerDir="Survival"
+								break;;
+					* ) errorMessage "Ce paramètre ne peut être qu'un chiffre entre 0 et 3";;
+				esac
+			done
+		else
+			infoMessage " Gamemode set to \"$ServerType\""
+			gamemode="$ServerType"
+		fi
+
+	#ENABLE QUERY
+		while [[ true ]]
+		do
+			read -p "enable-query [false] : " enable_query
+			case $(echo "$enable_query" | tr [:upper:] [:lower:]) in
+				true )	enable_querye="true"
+											break;;
+				false | "" ) enable_query="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#PLAYER IDLE TIMEOUT
+		while [[ true ]]
+		do
+			read -p "player-idle-timeout [0] : " player_idle_timeout
+			if [[ $player_idle_timeout == "" ]]
+			then
+				player_idle_timeout="0"
+				break
+			else
+				{
+					 pitTest=$(($player_idle_timeout/2))
+					 unset pitTest
+					 if [[ $player_idle_timeout > 0 ]]
+					 then
+						 break
+					 else
+						 errorMessage "Ce paramètre doit être supérieur ou égal à 0"
+					 fi
+				} || {
+								errorMessage "Merci d'entrer un nombre pour ce paramètre."
+							}
+			fi
+		done
+
+
+	#DIFFICULTY
+		if [[ -z "$ServerDifficulty" ]]
+		then
+			while [[ true ]]
+			do
+				read -p "difficulty [1] : " difficulty
+				case $difficulty in
+					0 | 1 | 2 | 3 ) ServerDifficulty=$difficulty
+													break;;
+					"" ) 	difficulty="1"
+								ServerDifficulty="1"
+								break;;
+					* ) errorMessage "Ce paramètre ne peut être qu'un chiffre entre 0 et 3";;
+				esac
+			done
+		else
+			infoMessage "difficulty set to \"$ServerDifficulty\""
+			difficulty="$ServerDifficulty"
+		fi
+
+	# SPAWN MONSTERS
+		while [[ true ]]
+		do
+			read -p "spawn-monsters [true] : " spawn_monsters
+			case $(echo "$spawn_monsters" | tr [:upper:] [:lower:]) in
+				true | "" )	spawn_monsters="true"
+											break;;
+				false ) spawn_monsters="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#OP PERMISSION LEVEL
+		while [[ true ]]
+		do
+			read -p "op-permission-level [4] : " op_permission_level
+			case $op_permission_level in
+				0 | 1 | 2 | 3 | 4 ) break;;
+				"" ) 	op_permission_level=4
+							break;;
+				* ) errorMessage "Ce paramètre ne peut être qu'un chiffre entre 0 et 4";;
+			esac
+		done
+
+	#RESSOURCE PACK HASH
+		#read -p "resource-pack-hash [NULL] : " resource_pack_hash
+		resource_pack_hash=""
+
+	#ANNOUNCE PLAYER ARCHIEVEMENT
+		while [[ true ]]
+		do
+			read -p "announce-player-achievements [true] : " announce_player_achievements
+			case $(echo "$announce_player_achievements" | tr [:upper:] [:lower:]) in
+				true | "" )	announce_player_achievements="true"
+											break;;
+				false ) announce_player_achievements="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#PVP
+		while [[ true ]]
+		do
+			read -p "pvp [true] : " pvp
+			case $(echo "$pvp" | tr [:upper:] [:lower:]) in
+				true | "" )	pvp="true"
+											break;;
+				false ) pvp="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#SNOOPER ENABLED
+		while [[ true ]]
+		do
+			read -p "snooper-enabled [true] : " snooper_enabled
+			case $(echo "$snooper_enabled" | tr [:upper:] [:lower:]) in
+				true | "" ) snooper_enabled="true"
+											break;;
+				false ) snooper_enabled="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#LEVEL TYPE
+		while [[ true ]]
+		do
+			read -p "level-type [DEFAULT] : " level_type
+			case $(echo "$level_type" | tr [:lower:] [:upper:] ) in
+				"" )	spawn_monsters="DEFAULT"
+											break;;
+				DEFAULT | FLAT | LARGEBIOMES | AMPLIFIED | CUSTOMIZED ) level_type=$(echo "$level_type" | tr [:lower:] [:upper:] )
+																																break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'DEFAULT' , 'FLAT' , 'LARGEBIOMES' , 'AMPLIFIED' ou 'CUSTOMIZED'";;
+			esac
+		done
+
+
+	#HARDCORE
+		while [[ true ]]
+		do
+			read -p "hardcore [false] : " hardcore
+			case $(echo "$hardcore" | tr [:upper:] [:lower:]) in
+				true ) hardcore="true"
+											break;;
+				false | "" ) hardcore="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#ENABLE COMMAND BLOCK
+		while [[ true ]]
+		do
+			read -p "enable-command-block [false] : " enable_command_block
+			case $(echo "$enable_command_block" | tr [:upper:] [:lower:]) in
+				true ) enable_command_block="true"
+											break;;
+				false | "" ) enable_command_block="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#MAX PLAYERS
+		while [[ true ]]
+		do
+			read -p "max-players : [8]" max_players
+			if [[ $max_players == "" ]]
+			then
+				max_players="8"
+				break
+			else
+				{
+					 mpTest=$(($max_players/2))
+					 unset mpTest
+					 if [[ $max_players > 1 ]]
+					 then
+						 break
+					 else
+						 errorMessage "Ce paramètre doit être supérieur ou égal à 2"
+					 fi
+				} || {
+								errorMessage "Merci d'entrer un nombre pour ce paramètre."
+							}
+			fi
+		done
+
+	#NETWORK COMPRESSION THERSHOLD
+		#read -p "network-compression-threshold [256] : " network_compression_threshold
+		network_compression_threshold="256"
+
+	#MAX WORLD SIZE
+		while [[ true ]]
+		do
+			read -p "max-world-size [29999984] : " max_world_size
+			if [[ $max_world_size == "" ]]
+			then
+				max_world_size="29999984"
+				break
+			else
+				{
+					 mpTest=$(($max_world_size/2))
+					 unset mpTest
+					 if [[ $max_world_size > 1 ]] && [[ $max_world_size < 29999984 ]]
+					 then
+						 break
+					 else
+						 errorMessage "Ce paramètre doit être supérieur ou égal à 1 et ne peut excéder 29999984"
+					 fi
+				} || {
+								errorMessage "Merci d'entrer un nombre pour ce paramètre."
+							}
+			fi
+		done
+
+	#SERVER PORT
+		server_port="25565"
+	#SERVER IP
+		server_ip=""
+
+	#SPAWN NPCS
+		while [[ true ]]
+		do
+			read -p "spawn-npcs [true] : " spawn_npcs
+			case $(echo "$spawn_npcs" | tr [:upper:] [:lower:]) in
+				true | "" ) spawn_npcs="true"
+											break;;
+				false ) spawn_npcs="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#ALLOW FIGHT
+		while [[ true ]]
+		do
+			read -p "allow-flight [false] : " allow_flight
+			case $(echo "$allow_flight" | tr [:upper:] [:lower:]) in
+				true ) allow_flight="true"
+											break;;
+				false | "" ) allow_flight="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#LEVEL NAME
+		#read -p "level-name [world] : " level_name
+		level_name="world"
+
+	#VIEW DISTANCE
+		#read -p "view-distance [15] : " view_distance
+		view_distance="15"
+
+	#RESSOURCE PACK
+		#read -p "resource-pack [NULL] : " resource_pack
+		resource_pack=""
+
+	#SPAWN ANIMALS
+		while [[ true ]]
+		do
+			read -p "spawn-animals [true] : " spawn_animals
+			case $(echo "$spawn_animals" | tr [:upper:] [:lower:]) in
+				true | "" ) spawn_animals="true"
+											break;;
+				false ) spawn_animals="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#WHITE LIST
+		while [[ true ]]
+		do
+			read -p "white-list [false] : " white_list
+			case $(echo "$white_list" | tr [:upper:] [:lower:]) in
+				true ) white_list="true"
+											break;;
+				false | "" ) white_list="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#GENERATE STRUCTURE
+		while [[ true ]]
+		do
+			read -p "generate-structures [true] : " generate_structures
+			case $(echo "$generate_structures" | tr [:upper:] [:lower:]) in
+				true | "" ) generate_structures="true"
+											break;;
+				false ) generate_structures="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#ONLINE MODE
+		while [[ true ]]
+		do
+			read -p "online-mode [false] :" online_mode
+			case $(echo "$online_mode" | tr [:upper:] [:lower:]) in
+				true ) online_mode="true"
+											break;;
+				false | "" ) online_mode="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+
+	#MAX BUILD HEGHT
+		#read -p "max-build-height [256] : " max_build_height
+		max_build_height="256"
+
+	#LEVEL SEED
+		#read -p "level-seed [NULL] : " level_seed
+		level_seed=""
+
+	#USE NATIVE TRANSPORT
+		#read -p "use-native-transport [true] : " use_native_transport
+		use_native_transport="true"
+
+	#MOTD
+		read -p "motd [A Baka No Laboratory Minecraft Server] : " motd
+		if [[ $motd == "" ]]
+		then
+			motd="A Baka No Laboratory Minecraft Server"
+		fi
+
+	#ENABLE RCON
+		while [[ true ]]
+		do
+			read -p "enable-rcon [false] : " enable_rcon
+			case $(echo "$enable_rcon" | tr [:upper:] [:lower:]) in
+				true ) enable_rcon="true"
+											break;;
+				false | "" ) enable_rcon="false"
+								break;;
+				* ) errorMessage "Ce paramètre ne peux être définis que sur 'true' ou  'false'";;
+			esac
+		done
+}
+###########################################################
+
+# CONFIG / TYPE / VERSION
+
+#Définition du type de serveur
+setServerBase()
+{
+  while [[ true ]]
+  do
+    echo "Liste des Bases disponibles : "
+    echo "  (1) Vanilla"
+    echo "  (2) Bukkit"
+    echo "  (3) Forge"
+    read -p "Choisissez votre base de seveur (Default=2): " ServerBase
+    case $(echo "$ServerBase" | tr [:upper:] [:lower:]) in
+      1 | "vanilla" | "v" ) ServerBase="vanilla"
+                            break;;
+      2 | "bukkit" | "b" | "" )   ServerBase="bukkit"
+                                  break;;
+      3 | "forge" | "f" )   ServerBase="forge"
+                            break;;
+      * ) ;;
+    esac
+  done
+  validMessage "Type  de serveur défini sur : $ServerBase"
+}
+
+#choix de a version du sereur
+setServerVersion()
+{
+	vrsattr=0
+	versionTable=[]
+
+	echo "Voici toute les versions disponibles : \
+	"
+
+	for vrs in $(ls $ServerSourcesDir/$ServerBase)
+	do
+		vrsattr=$((vrsattr+1))
+		echo "($vrsattr) $vrs"
+		versionTable[$vrsattr]="$vrs"
+	done
+
+	while [[ true ]]
+	do
+		read -p "Version du serveur (Defaut = "$vrsattr") : " vServ
+		case $vServ in
+			[1-$vrsattr] ) ServerVersion=${versionTable[$vServ]}
+										break;;
+			[${versionTable[@]}] ) ServerVersion=$vServ
+														break;;
+			"" ) 	ServerVersion=${versionTable[$vrsattr]}
+						break;;
+			* ) for Svrs in $(ls $ServerSourcesDir/$ServerBase)
+					do
+						if [[ "$vServ" == "$Svrs" ]]
+						then
+							breakSvrs=1
+							ServerVersion=$vServ
+							break
+						fi
+					done
+					if [[ $breakSvrs == 1 ]]
+					then
+						break
+					fi
+					errorMessage "Version non disponible.";;
+		esac
+	done
+
+	validMessage "Version du serveur définie sur : $ServerVersion"
+}
+
+setServerConfigs()
+{
+	if [[ -z $ServerPort ]]
+	then
+		read -p "Port Du serveur Minecraft : " ServerPort
+	fi
+	if [[ -z $WebServerPort ]]
+	then
+		read -p "Port Du serveur Web : " WebServerPort
+	fi
+}
+
+###########################################################
+
+# PARAMETER TESTERS
+
+testParameters()
+{
+
+	case $1 in
+		-t | --type ) errorMessage "Vous ne pouvez pas affecter le nom d'un paramètre en valeur"
+									exit 1;;
+		-n | --name ) errorMessage "Vous ne pouvez pas affecter le nom d'un paramètre en valeur"
+									exit 1;;
+		-p | --port ) errorMessage "Vous ne pouvez pas affecter le nom d'un paramètre en valeur"
+									exit 1;;
+		-w | --web ) 	errorMessage "Vous ne pouvez pas affecter le nom d'un paramètre en valeur"
+									exit 1;;
+		-v | --version ) errorMessage "Vous ne pouvez pas affecter le nom d'un paramètre en valeur"
+										 exit 1;;
+		-d | --difficulty ) errorMessage "Vous ne pouvez pas affecter le nom d'un paramètre en valeur"
+										 exit 1;;
+		* ) ;;
+	esac
+
+	case $1 in
+		-t | --type ) case $(echo $2 | tr [:upper:] [:lower:]) in
+										0 | 1 | 2 | 3 ) ServerType="$2";;
+										s | survival ) ServerType="0";;
+										c | creative )  ServerType="1";;
+										a | adventure )  ServerType="2";;
+										v | viewer )  ServerType="3";;
+										* ) errorMessage "gamemode incorecte ! -h ou --help pour l'aide"
+												exit 1;;
+									esac;;
+
+											# 0: survival | 1: creative | 2: adventure | 3: spectator
+		-n | --name ) ServerName="$2";;
+		-p | --port ) {
+										$(($2/2))
+									}	||	{
+													errorMessage ""
+													exit 1
+												}
+										ServerPort="$2";;
+		-w | --web ) WebServerPort="$2";;
+		-v | --version )	case "$2" in
+												"1.8.9" ) ServerVersion="$2";;
+												* ) errorMessage "Cette version n'est pas encore dans le repertoire"
+												 		exit 1;;
+											esac;;
+		-d | --difficulty ) case $(echo $2 | tr [:upper:] [:lower:]) in
+													0 | 1 | 2 | 3 ) ServerDifficulty="$2";;
+													p | peaceful ) ServerDifficulty="0";;
+													e | easy )  ServerDifficulty="1";;
+													m | medium )  ServerDifficulty="2";;
+													h | hard )  ServerDifficulty="3";;
+													* ) errorMessage "Niveau de difficulté incorect ! -h ou --help pour l'aide"
+															exit 1;;
+												esac;;
+		* ) errorMessage "$1 : Paramètre non existant"
+				exit 1;;
+	esac
+
+	echo " - Definition du server.properties - "
+	infoMessage "Les paramètres entré seront définis comme valeur par défault"
+}
+
+###########################################################
+
+#SECOND MAIN
+
+mineGenerate()
+{
+		if [[ $# > 0 ]]
+		then
+			parameters=($@)
+			for i in `seq 0 $(($#/2))`
+			do
+				if [[ ! -z ${parameters[i*2]} ]] && [[ ! -z ${parameters[i*2+1]} ]]
+				then
+					testParameters ${parameters[i*2]}  ${parameters[i*2+1]}
+				fi
+				i=$(($i+2))
+			done
+		fi
+
+		echo -e "######################################################################################################"
+		echo -e "######################\e[1;33mBienvenu dans l'assistant de création de serveur Minecraft\e[0;0m######################"
+		echo -e "######################################################################################################"
+		read -p ""
+
+		dirVerification
+
+		while [[ true ]]
+		do
+      setServerBase
+
+			if [[ -z $ServerVersion ]]
+			then
+				setServerVersion
+			fi
+
+			setServerProperties
+			setServerConfigs
+			echo -e "Vérification des configuration: \
+			"
+			echo -e "\e[1;32mspawn-protection\e[0;0m = $spawn_protection"
+			echo -e "\e[1;32mmax-tick-time\e[0;0m	= $max_tick_time"
+			echo -e "\e[1;32mserver-name\e[0;0m	= $server_name"
+			echo -e "\e[1;32mgenerator-settings\e[0;0m = $generator_settings"
+			echo -e "\e[1;32mforce-gamemode\e[0;0m = $force_gamemode"
+			echo -e "\e[1;32mallow-nether\e[0;0m = $allow_nether"
+			echo -e "\e[1;32mgamemode\e[0;0m = $gamemode"
+			echo -e "\e[1;32menable-query\e[0;0m = $enable_query"
+			echo -e "\e[1;32mplayer-idle-timeout\e[0;0m = $player_idle_timeout"
+			echo -e "\e[1;32mdifficulty\e[0;0m = $difficulty"
+			echo -e "\e[1;32mspawn-monsters\e[0;0m = $spawn_monsters"
+			echo -e "\e[1;32mop-permission-level\e[0;0m = $op_permission_level"
+			echo -e "\e[1;32mresource-pack-hash\e[0;0m = $resource_pack_hash"
+			echo -e "\e[1;32mannounce-player-achievements\e[0;0m = $announce_player_achievements"
+			echo -e "\e[1;32mpvp\e[0;0m = $pvp"
+			echo -e "\e[1;32msnooper-enabled\e[0;0m = $snooper_enabled"
+			echo -e "\e[1;32mlevel-type\e[0;0m = $level_type"
+			echo -e "\e[1;32mhardcore\e[0;0m = $hardcore"
+			echo -e "\e[1;32menable-command-block\e[0;0m = $enable_command_block"
+			echo -e "\e[1;32mmax-players\e[0;0m = $max_players"
+			echo -e "\e[1;32mnetwork-compression-threshold\e[0;0m = $network_compression_threshold"
+			echo -e "\e[1;32mmax-world-size\e[0;0m = $max_world_size"
+			echo -e "\e[1;32mserver-port\e[0;0m = $server_port"
+			echo -e "\e[1;32mserver-ip\e[0;0m = $server_ip"
+			echo -e "\e[1;32mspawn-npcs\e[0;0m = $spawn_npcs"
+			echo -e "\e[1;32mallow-flight\e[0;0m = $allow_flight"
+			echo -e "\e[1;32mlevel-name\e[0;0m = $level_name"
+			echo -e "\e[1;32mview-distance\e[0;0m = $view_distance"		#
+			echo -e "\e[1;32mresource-pack\e[0;0m = $resource_pack"				#
+			echo -e "\e[1;32mspawn-animals\e[0;0m = $spawn_animals"				#
+			echo -e "\e[1;32mwhite-list\e[0;0m =  $white_list"			#
+			echo -e "\e[1;32mgenerate-structures\e[0;0m =  $generate_structures"				#
+			echo -e "\e[1;32monline-mode\e[0;0m =  $online_mode"					#
+			echo -e "\e[1;32mmax-build-height\e[0;0m =  $max_build_height"					#
+			echo -e "\e[1;32mlevel-seed\e[0;0m =  $level_seed"					#
+			echo -e "\e[1;32muse-native-transport\e[0;0m = $use_native_transport"				#
+			echo -e "\e[1;32mmotd\e[0;0m = $motd"				#
+			echo -e "\e[1;32menable-rcon\e[0;0m = $enable_rcon"			#
+			echo -e "\
+			################################################## \
+			"
+			echo -e "\e[1;36mPort Minecraft du serveur: \e[0;0m = $ServerPort"
+			echo -e "\e[1;36mPort Apache du serveur : \e[0;0m = $WebServerPort"
+			echo -e "\
+			################################################## \
+			"
+			while [[ true ]]
+			do
+				read -p "Validez vous ces information? [O|n] : " launchInstall
+				case $launchInstall in
+					O | o | y | Y | "" ) 	finishConf=1
+																break;;
+					N | n ) finishConf=0
+									spawn_protection=""
+									max_tick_time=""
+									server_name=""
+									generator_settings=""
+									force_gamemode=""
+									allow_nether=""
+									gamemode=""
+									enable_query=""
+									player_idle_timeout=""
+									difficulty=""
+									spawn_monsters=""
+									op_permission_level=""
+									resource_pack_hash=""
+									announce_player_achievements=""
+									pvp=""
+									snooper_enabled=""
+									level_type=""
+									hardcore=""
+									enable_command_block=""
+									max_players=""
+									network_compression_threshold=""
+									max_world_size=""
+									server_port=""
+								 	server_ip=""
+									spawn_npcs=""
+								 	allow_flight=""
+									level_name=""
+									view_distance=""
+									resource_pack=""
+									spawn_animals=""
+									white_list=""
+									generate_structures=""
+									online_mode=""
+									max_build_height=""
+									level_seed=""
+									use_native_transport=""
+									motd=""
+									enable_rcon=""
+									ServerPort=""
+									WebServerPort=""
+									ServerName=""
+									ServerPort=""
+									WebServerPort=""
+									ServerType=""
+									workDir=""
+									ServerAdmin=""
+									ServerVersion=""
+									ServerDifficulty=""
+									break ;;
+					* ) ;;
+				esac
+			done
+
+			if [[ $finishConf == 1 ]]
+			then
+				validMessage "Configuration Terminée, passage à l'installation"
+				break
+			fi
+		done
+
+		#VALIDATION DU EULA
+		validerEula
+
+		#GENERATION DES DOSSIERS !!
+		echo -e "\
+		"
+		infoMessage "Génération des dossier et des fichiers sources"
+		generateDirs
+
+		#LANCER LE PROCESS DOCKER !!
+		dockerLaunch
+
+		if [[ "$ServerBase" != "vanilla" ]]
+		then
+			while [[ true ]]
+			do
+				read -p "Souhatez-vous ajouter des plugin à votre server maintenant ? [N/o] : " plugadd
+				case $plugadd in
+					O | o | Y | y ) addPlugin;;
+					N | n | "" )	break;;
+					* ) ;;
+				esac
+			done
+		fi
+
+}
+
+###########################################################
+
+#MAIN BRANCHE
+
+{
+	test=$(sudo echo 'Generate Server')
+	#Vérification des doublons et de possible sets incorrects.
+
+	if [[ $1 == "-i" ]] || [[ $1 == "--install" ]]
+	then
+		infoMessage "Installation completed"
+		exit 0
+	fi
+
+
+	for i in $@
+	do
+		equalizer=0
+		for o in $@
+		do
+			if [[ $o = $i ]]
+			then
+				equalizer=$(($equalizer + 1))
+				#S'il y a deux fois la meme valeur, le programme s'arrête
+				if [[ $equalizer > 1 ]]
+				then
+					errorMessage "Vous ne pouvez pas déclarer deux fois le même paramètre"
+					exit 1
+				fi
+			fi
+		done
+	done
+	#Grace à la variable "$test", on vérifie si l'utilisateur possède les droit root
+	if [[ "$test" = "Generate Server" ]]
+	then
+		#Lancement du processus
+		mineGenerate $@
+	else
+		errorMessage "Vous ne possédez pas les droit suffisant pour générer un serveur"
+		exit 1
+	fi
+
+} || {
+				errorMessage "Une erreur d'origine inconue est survenue"
+				exit 1
+			}
+validMessage "Génération du serveur complétée avec Succès"
+echo -e "Nom du Serveur: $server_name"
+echo -e "Type de Serveur: $ServerBase"
+echo -e "Version : $ServerVersion"
+echo -e "Server Port : $ServerPort"
+echo -e "Adresse web : $WebServerPort"
+while [[ true ]]
+do
+	read -p "Lancer le serveur maintenant? [O|n] : " launchServerNow
+	case $launchServerNow in
+		O | o | Y | y | "" ) sudo $launchDir/$server_name/$server_name.launch
+													echo -e "Serveur Lancé"
+													echo -e "\
+############# BON JEU #############\
+"
+													break;;
+		N | n )	break;;
+		* ) ;;
+	esac
+done
