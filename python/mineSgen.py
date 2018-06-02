@@ -46,13 +46,15 @@ class minecraftServer:
             	'enable-rcon':'false'
             }
 
-    def changeProperty(self, property, regex):
+    def changeProperty(self, property, allowedValues, notAllowedValues, regex):
         while True:
             try:
                 propertyModif = input(str(property) + ' [' + str(self.properties.get(property)) + '] :').strip()
                 if propertyModif in [str(self.properties.get(property)), '']:
                     propertyModif = str(self.properties.get(property))
                 else:
+                    if allowedValues:
+
                     self.properties[property] = propertyModif
 
             except:
@@ -63,85 +65,84 @@ class minecraftServer:
 def CreateServ():
     return minecraftServer()
 
-regex='a'
 
 def StandardSetServerProperties(server):
 
 
     #Name
-    server.changeProperty('server-name', regex)
+    server.changeProperty('server-name', None, '', regex) #Créer une fonction permettant de récupérer tous les noms des précédents serveurs
     #Gamemode
-    server.changeProperty('gamemode', regex)
-    server.changeProperty('force-gamemode', regex)
+    server.changeProperty('gamemode', [0, 1, 2, 3], None, regex)
+    server.changeProperty('force-gamemode', ['true', 'false'], '', regex)
     #Map
-    server.changeProperty('allow-nether', regex)
-    server.changeProperty('level-type', regex)
-    server.changeProperty('generate-structures', regex)
-    server.changeProperty('level-seed', regex)
+    server.changeProperty('allow-nether', ['true', 'false'], '', regex)
+    server.changeProperty('level-type', '', '', regex)
+    server.changeProperty('generate-structures', '', '', regex)
+    server.changeProperty('level-seed', '', '', regex)
     #Player
-    server.changeProperty('difficulty', regex)
-    server.changeProperty('hardcore', regex)
-    server.changeProperty('pvp', regex)
+    server.changeProperty('difficulty', '', '', regex)
+    server.changeProperty('hardcore', '', '', regex)
+    server.changeProperty('pvp', '', '', regex)
     #Spawning
-    server.changeProperty('spawn-monsters', regex)
-    server.changeProperty('spawn-npcs', regex)
-    server.changeProperty('spawn-animals', regex)
+    server.changeProperty('spawn-monsters', '', '', regex)
+    server.changeProperty('spawn-npcs', '', '', regex)
+    server.changeProperty('spawn-animals', '', '', regex)
     #Administration
-    server.changeProperty('enable-command-block', regex)
-    server.changeProperty('max-players', regex)
-    server.changeProperty('allow-flight', regex)
-    server.changeProperty('view-distance', regex)
-    server.changeProperty('white-list', regex)
+    server.changeProperty('enable-command-block', '', '', regex)
+    server.changeProperty('max-players', '', '', regex)
+    server.changeProperty('allow-flight', '', '', regex)
+    server.changeProperty('view-distance', '', '', regex)
+    server.changeProperty('white-list', '', '', regex)
     #Chatbox
-    server.changeProperty('announce-player-achievements', regex)
+    server.changeProperty('announce-player-achievements', '', '', regex)
     #Derniers Demandés:
-    server.changeProperty('online-mode', regex)
-    server.changeProperty('motd', regex)
+    server.changeProperty('online-mode', '', '', regex)
+    server.changeProperty('motd', '', '', regex)
 
 
 def AdvancedSetServerProperties(server):
     #Name
-    server.changeProperty('server-name', regex)
+    server.changeProperty('server-name', '', '', regex)
     #Gamemode
-    server.changeProperty('gamemode', regex)
-    server.changeProperty('force-gamemode', regex)
+    server.changeProperty('gamemode', '', '', regex)
+    server.changeProperty('force-gamemode', '', '', regex)
     #Map
-    server.changeProperty('allow-nether', regex)
-    server.changeProperty('level-type', regex)
-    server.changeProperty('generate-structures', regex)
-    server.changeProperty('level-seed', regex)
+    server.changeProperty('allow-nether', '', '', regex)
+    server.changeProperty('level-type', '', '', regex)
+    server.changeProperty('generate-structures', '', '', regex)
+    server.changeProperty('level-seed', '', '', regex)
     #Player
-    server.changeProperty('difficulty', regex)
-    server.changeProperty('hardcore', regex)
-    server.changeProperty('pvp', regex)
+    server.changeProperty('difficulty', '', '', regex)
+    server.changeProperty('hardcore', '', '', regex)
+    server.changeProperty('pvp', '', '', regex)
     #Spawning
-    server.changeProperty('spawn-monsters', regex)
-    server.changeProperty('spawn-npcs', regex)
-    server.changeProperty('spawn-animals', regex)
+    server.changeProperty('spawn-monsters', '', '', regex)
+    server.changeProperty('spawn-npcs', '', '', regex)
+    server.changeProperty('spawn-animals', '', '', regex)
     #Administration
-    server.changeProperty('enable-command-block', regex)
-    server.changeProperty('max-players', regex)
-    server.changeProperty('allow-flight', regex)
-    server.changeProperty('view-distance', regex)
-    server.changeProperty('white-list', regex)
+    server.changeProperty('enable-command-block', '', '', regex)
+    server.changeProperty('max-players', '', '', regex)
+    server.changeProperty('allow-flight', '', '', regex)
+    server.changeProperty('view-distance', '', '', regex)
+    server.changeProperty('white-list', '', '', regex)
     #Chatbox
-    server.changeProperty('announce-player-achievements', regex)
+    server.changeProperty('announce-player-achievements', '', '', regex)
     #AdvancedTools
-    server.changeProperty('spawn-protection', regex)
-    server.changeProperty('max-tick-time', regex)
-    server.changeProperty('generator-settings', regex)
-    server.changeProperty('enable-query', regex)
-    server.changeProperty('player-idle-timeout', regex)
-    server.changeProperty('snooper-enabled', regex)
-    server.changeProperty('network-compression-threshold', regex)
-    server.changeProperty('max-world-size', regex)
-    server.changeProperty('level-name', regex)
-    server.changeProperty('use-native-transport', regex)
-    server.changeProperty('enable-rcon', regex)
-    server.changeProperty('max-build-height', regex)
-    server.changeProperty('resource-pack-hash', regex)
-    server.changeProperty('resource-pack', regex)
-    server.changeProperty('op-permission-level', regex)
+    server.changeProperty('spawn-protection', '', '', regex)
+    server.changeProperty('max-tick-time', '', '', regex)
+    server.changeProperty('generator-settings', '', '', regex)
+    server.changeProperty('enable-query', '', '', regex)
+    server.changeProperty('player-idle-timeout', '', '', regex)
+    server.changeProperty('snooper-enabled', '', '', regex)
+    server.changeProperty('network-compression-threshold', '', '', regex)
+    server.changeProperty('max-world-size', '', '', regex)
+    server.changeProperty('level-name', '', '', regex)
+    server.changeProperty('use-native-transport', '', '', regex)
+    server.changeProperty('enable-rcon', '', '', regex)
+    server.changeProperty('max-build-height', '', '', regex)
+    server.changeProperty('resource-pack-hash', '', '', regex)
+    server.changeProperty('resource-pack', '', '', regex)
+    server.changeProperty('op-permission-level', '', '', regex)
     #Derniers Demandés:
-    server.changeProperty('online-mode', regex)
-    server.changeProperty('motd', regex)
+    server.changeProperty('online-mode', '', '', regex)
+    server.changeProperty('motd', '', '', regex)
