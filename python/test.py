@@ -1,5 +1,3 @@
-from datetime import date
+import os, sys
 
-print(str(date.today().year)+'-'+str(date.today().month))
-
-print (date.today.strftime("%B-%Y"))
+os.mkdir('/home/usakinkageru/tarass/bite/con/prout/' )

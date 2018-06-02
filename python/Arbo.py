@@ -1,3 +1,7 @@
+import os, fs
+
+import ActDirs
+
 class Arborescence:
     def __init__(self, root_dir):
         self.root_dir=str(root_dir)
@@ -18,6 +22,12 @@ class Arborescence:
         #Servers
         self.servers_dir=str(root_dir+'Servers/')
 
-    def dirVerification():
-        if(not os.path.isdir(options.get('install_path'))):
-            os.mkdir(options.get('install_path'))
+
+    def dirVerification(self):
+        ActDirs.generateIfNotExist(self.root_dir)
+        ActDirs.generateIfNotExist(self.process_dir)
+        ActDirs.generateIfNotExist(self.sources_dir)
+        ActDirs.generateIfNotExist(self.addons_sources_dir)
+        ActDirs.generateIfNotExist(self.backend_process_dir)
+        ActDirs.generateIfNotExist(self.launch_dir)
+        ActDirs.generateIfNotExist(self.servers_dir)
